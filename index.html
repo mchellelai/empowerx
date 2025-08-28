@@ -8,6 +8,14 @@
         This is a single-file application, which makes it ideal for
         static website hosting platforms like GitHub Pages.
         All CSS and JavaScript are included directly in this file.
+
+        Deployment notes for GitHub Pages:
+        If you are seeing a "Cannot GET /" error, it typically means the GitHub Pages
+        server cannot find the index.html file. Please check your repository settings
+        under 'Pages' to ensure the following:
+        - The source is set to the correct branch (e.g., 'main' or 'gh-pages').
+        - The folder is set to '/' (root) or the directory where this file is located.
+        - The file is correctly named 'index.html' and is located in the root of the selected branch.
     -->
 
     <!-- Tailwind CSS CDN for modern styling -->
@@ -232,8 +240,11 @@
                         addMessage('Hello there! I am Ember from EmpoweRx, here to help you update your medication list!');
                         addMessage('First, let\'s retrieve your medication list from HealthHub!');
                         showButtons([
-                          { text: 'Retrieve Medication List', action: (text) => {
+                          { text: 'Login to HealthHub', action: (text) => {
                               addMessage(text, false);
+                              // Redirect to the HealthHub login page in a new tab
+                              window.open('https://eservices.healthhub.sg/', '_blank');
+                              
                               conversationState = 1;
                               handleMessage(text);
                           } },
@@ -251,37 +262,67 @@
                         break;
                     
                     case 1:
-                        addMessage('This is your medication list on HealthHub:');
-                        const list1 = '1. Amlodipine 5mg tablet (Zynor) - 1 tablet every morning (supplied 90 tablets from Tan Tock Seng Hospital on 1 Jun 2023)';
-                        addMessage(list1);
-                        currentMedications.push(list1);
-                        addMessage('Are you taking your medications according to these instructions?');
-                        showButtons([{ text: 'Yes', action: (text) => {
-                            addMessage(text, false);
-                            conversationState = 2;
-                            handleMessage(text);
-                        } }]);
+                        // Display the new, more detailed list
+                        addMessage('We have retrieved your current medication list from HealthHub.')
+                        addMessage(' You currently have these 3 medications on the list:');
+                        const newMedList = [
+                            '1. <b>Dapagliflozin 10mg Tablet</b><br>Instructions: <b>Take 1 tablet once daily</b><br>Purpose: For diabetes control (SGLT2 inhibitor)<br>Supplied 90 tablets from Singapore General Hospital on 1 Jun 2023',
+                            '2. <b>Amlodipine 5mg Tablet (Norvasc)</b><br>Instructions: <b>Take 1 tablet once daily</b><br>Purpose: For blood pressure control (Calcium channel blocker)<br>Supplied 90 tablets from Singapore General Hospital on 1 Jun 2023',
+                            '3. <b>Simvastatin 10mg Tablet (Simvor)</b><br>Instructions: <b>Take 1 tablet at night</b><br>Purpose: For cholesterol management (Statin)<br>Supplied 90 tablets from Singapore General Hospital on 1 Jun 2023'
+                        ];
+
+                        // Update the currentMedications array with the new list
+                        currentMedications = newMedList;
+
+                        // Display the list as an HTML unordered list
+                        const htmlList = newMedList.map(item => `<li>${item}</li>`).join('');
+                        addMessage(`<ul class="message-list">${htmlList}</ul>`, true, true);
+
+                        addMessage('Are you taking the above medications according to the stated instructions?');
+                        showButtons([
+                            { text: 'Yes', action: (text) => {
+                                addMessage(text, false);
+                                conversationState = 2;
+                                handleMessage(text);
+                            } },
+                            { text: 'No', action: (text) => {
+                                addMessage(text, false);
+                                conversationState = 7;
+                                handleMessage(text);
+                            } }
+                        ]);
                         break;
                     
                     case 2:
-                        addMessage('Do you have any other medications/supplements to add?');
+                        addMessage('Great! Do you have any other medications/supplements to add?<br>You may also add any supplements, vitamins or Traditional Chinese Medicine to the list.', true, true);
                         showButtons([
-                            { text: 'Take photo', action: (text) => {
+                            { text: 'Yes', action: (text) => {
                                 addMessage(text, false);
-                                conversationState = 3;
-                                handleMessage(text);
+                                addMessage('How would you like to do it?');
+                                showButtons([
+                                    { text: 'Upload photo', action: (text) => {
+                                        addMessage(text, false);
+                                        conversationState = 3;
+                                        handleMessage('Upload photo');
+                                    }},
+                                    { text: 'Enter manually', action: (text) => {
+                                        addMessage(text, false);
+                                        conversationState = 3;
+                                        handleMessage('Enter manually');
+                                    }}
+                                ]);
                             }},
-                            { text: 'Enter manually', action: (text) => {
+                            { text: 'No', action: (text) => {
                                 addMessage(text, false);
-                                conversationState = 3;
+                                conversationState = 8;
                                 handleMessage(text);
                             }}
                         ]);
                         break;
                     
                     case 3:
-                        if (message === 'Take photo') {
-                            addMessage('Please upload a photo of your medication label. Ensure it is clearly visible.');
+                        if (message === 'Upload photo') {
+                            addMessage('Please upload a photo of your medication or medication label. Ensure the details are clearly visible.');
                             buttonArea.innerHTML = ''; // Clear buttons
                             textInputContainer.style.display = 'none';
                             fileUploadContainer.style.display = 'flex';
@@ -294,42 +335,37 @@
                             // User has entered a manual medication
                             const newMedication = message;
                             addMessage(newMedication, false);
-                            addMessage(`Based on your input, you have added: 1. ${newMedication} Please reply Yes to confirm.`);
+                            currentMedications.push(newMedication);
+                            addMessage(`Based on your input, you have added: ${currentMedications.length}. ${newMedication}. Please reply Yes to confirm.`);
                             showButtons([{ text: 'Yes', action: (text) => {
                                 addMessage(text, false);
                                 conversationState = 4;
                                 handleMessage(text);
                             } }]);
-                            currentMedications.push(newMedication);
                         }
                         break;
 
                     case 4:
                         if (message === 'Yes') {
-                            addMessage(`I see you have entered "${currentMedications[1].split(' ')[0]}". Did you mean "Dapagliflozin", a medication usually used for diabetes?`);
-                            showButtons([{ text: 'Yes', action: (text) => {
-                                addMessage(text, false);
-                                conversationState = 5;
-                                handleMessage(text);
-                            } }]);
+                             // User confirmed the name, now ask for strength
+                            addMessage('What is the strength of the tablet you are taking? The tablets usually come in 5mg and 10mg.');
+                            textInputContainer.style.display = 'flex';
+                            fileUploadContainer.style.display = 'none';
+                            buttonArea.innerHTML = '';
+                            conversationState = 6;
                         } else if (message === 'Dapagliflozin') { // Handling mock photo upload
                             addMessage(`I found "${message}" in your photo.`);
+                            addMessage('What is the strength of the tablet you are taking? The tablets usually come in 5mg and 10mg.');
                             showButtons([{ text: 'Yes', action: (text) => {
                                 addMessage(text, false);
-                                conversationState = 5;
+                                conversationState = 6;
                                 handleMessage(text);
                             } }]);
                         }
                         break;
 
                     case 5:
-                        if (message === 'Yes') {
-                            addMessage('What is the strength of the tablet you are taking? The tablets usually come in 5mg and 10mg.');
-                            textInputContainer.style.display = 'flex';
-                            fileUploadContainer.style.display = 'none';
-                            buttonArea.innerHTML = '';
-                            conversationState = 6;
-                        }
+                        // This state is not currently used, but could be used for other purposes
                         break;
                         
                     case 6:
@@ -337,16 +373,12 @@
                         const strength = message;
                         addMessage(strength, false);
                         
+                        // Update the last added medication with the strength
+                        const newMedName = currentMedications[currentMedications.length - 1];
+                        currentMedications[currentMedications.length - 1] = `${currentMedications.length}. ${newMedName} ${strength}mg tablet once daily`;
+
                         // Final combined list
-                        const combinedList = currentMedications.map((item, index) => {
-                            if (index === 0) {
-                                return `1. Amlodipine 5mg tablet (Zynor) - 1 tablet every morning (supplied 90 tablets from Tan Tock Seng Hospital on 1 Jun 2023)`;
-                            } else {
-                                // Assume manual entry was Dapagliflozin
-                                const parsedMed = item;
-                                return `2. Dapagliflozin ${strength} tablet once daily (from JB Pharmacy)`;
-                            }
-                        }).join('<br>');
+                        const combinedList = currentMedications.map((item) => `<li>${item}</li>`).join('');
                         
                         addMessage('Great! This is your medication list so far:');
                         addMessage(`<ul class="message-list">${combinedList}</ul>`, true, true);
@@ -367,8 +399,8 @@
                             addMessage('Great. Do you need to add more?');
                             showButtons([{ text: 'Yes', action: (text) => {
                                 addMessage(text, false);
-                                conversationState = 8;
-                                handleMessage(text);
+                                conversationState = 2; // Go back to the 'add more' loop
+                                handleMessage('add more');
                             }}, { text: 'No', action: (text) => {
                                 addMessage(text, false);
                                 conversationState = 8;
@@ -384,13 +416,14 @@
                     
                     case 8:
                         if (message === 'No') {
-                            addMessage('Great. I will proceed to save this list. Your healthcare provider will now be able to access your latest medication list from EmpoweRx.');
+                            addMessage('Great! I will proceed to save this list. Your healthcare provider will now be able to access your latest medication list from EmpoweRx.');
+                            addMessage('Thank you for taking charge of your health! Chat with me again whenever you need to updated your medication list.');
                             buttonArea.innerHTML = '';
                             textInputContainer.style.display = 'none';
                             fileUploadContainer.style.display = 'none';
 
                             // Add the restart button at the end
-                            showButtons([{ text: 'Restart Conversation', action: () => {
+                            showButtons([{ text: 'Update your medication list', action: () => {
                                 // Clear conversation and reset state
                                 chatWindow.innerHTML = '';
                                 conversationState = 0;
@@ -436,11 +469,29 @@
                 if (file) {
                     addPhoto(file); // Display the photo
                     addMessage(`Uploading photo of ${file.name}...`);
-                    // Simulate processing and finding Dapagliflozin
-                    currentMedications.push('Dapagliflozin');
-                    conversationState = 4;
+                    
                     setTimeout(() => {
-                        handleMessage('Dapagliflozin');
+                        const mockMedication = 'Fexofenadine Hydrochloride 120mg';
+                        const mockInstructions = '1 tablet daily, as needed';
+                        const mockPurpose = 'For allergic rhinitis';
+                        
+                        addMessage(`Based on your photo, I found:<br><b>${mockMedication}</b><br>Instructions: <b>${mockInstructions}</b></b><br>Purpose: ${mockPurpose}`, true, true);
+                        addMessage('Is this correct?');
+                        
+                        showButtons([
+                            { text: 'Yes', action: (text) => {
+                                addMessage(text, false);
+                                currentMedications.push(`${mockMedication}<br>Instructions: ${mockInstructions}`);
+                                conversationState = 7;
+                                handleMessage('Yes');
+                            }},
+                            { text: 'No', action: (text) => {
+                                addMessage(text, false);
+                                addMessage('No problem! Let\'s start over. What would you like to do?');
+                                conversationState = 2; // Go back to the 'add more' loop
+                                handleMessage('start over');
+                            }}
+                        ]);
                     }, 1000); // Wait 1 second to simulate processing
                 } else {
                     addMessage('Please select a photo to upload.', true);
@@ -453,3 +504,4 @@
     </script>
 </body>
 </html>
+
