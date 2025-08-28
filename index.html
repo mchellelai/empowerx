@@ -137,7 +137,7 @@
             height: auto;
             border-radius: 1rem;
             margin-top: 0.5rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1-2px rgba(0, 0, 0, 0.06);
         }
     </style>
 </head>
@@ -146,7 +146,7 @@
     <div class="chat-container">
         <!-- Chat Header -->
         <div class="chat-header">
-            EmpoweRx
+            <span>EmpoweRx</span>
         </div>
 
         <!-- Chat Window -->
@@ -224,6 +224,7 @@
             // Display dynamic buttons based on state
             const showButtons = (buttons) => {
                 buttonArea.innerHTML = ''; // Clear previous buttons
+                
                 buttons.forEach(btn => {
                     const button = document.createElement('button');
                     button.textContent = btn.text;
@@ -235,26 +236,30 @@
 
             // Main chatbot logic based on conversation state
             const handleMessage = (message) => {
+                // Clear the chat window before displaying a new state, except for user input messages
+                if (message === 'back') {
+                     chatWindow.innerHTML = '';
+                }
+
                 switch (conversationState) {
                     case 0:
                         addMessage('Hello there! I am Ember from EmpoweRx, here to help you update your medication list!');
-                        addMessage('First, let\'s retrieve your medication list from HealthHub!');
+                        addMessage('First, let\'s retrieve your medication list from HealthHub/ EmpoweRx!');
                         showButtons([
-                          { text: 'Login to HealthHub', action: (text) => {
+                          { text: 'Login with SingPass', action: (text) => {
                               addMessage(text, false);
                               // Redirect to the HealthHub login page in a new tab
-                              window.open('https://eservices.healthhub.sg/', '_blank');
+                              window.open('https://portal.singpass.gov.sg/home/ui/login', '_blank');
                               
                               conversationState = 1;
                               handleMessage(text);
                           } },
                           { text: 'Start a New List', action: (text) => {
                               addMessage(text, false);
-                              // Clear conversation and reset state
                               chatWindow.innerHTML = '';
-                              conversationState = 2; // Move directly to adding new medications
+                              conversationState = 9; // Link to the new 'How would you like to do it?' state
                               currentMedications = [];
-                              handleMessage('Enter manually'); // Automatically jump to manual entry
+                              handleMessage(text);
                               textInputContainer.style.display = 'flex';
                               fileUploadContainer.style.display = 'none';
                           } }
@@ -298,19 +303,8 @@
                         showButtons([
                             { text: 'Yes', action: (text) => {
                                 addMessage(text, false);
-                                addMessage('How would you like to do it?');
-                                showButtons([
-                                    { text: 'Upload photo', action: (text) => {
-                                        addMessage(text, false);
-                                        conversationState = 3;
-                                        handleMessage('Upload photo');
-                                    }},
-                                    { text: 'Enter manually', action: (text) => {
-                                        addMessage(text, false);
-                                        conversationState = 3;
-                                        handleMessage('Enter manually');
-                                    }}
-                                ]);
+                                conversationState = 9; // Link to the new 'How would you like to do it?' state
+                                handleMessage(text);
                             }},
                             { text: 'No', action: (text) => {
                                 addMessage(text, false);
@@ -319,18 +313,49 @@
                             }}
                         ]);
                         break;
+
+                    case 9:
+                        addMessage('How would you like to do it?');
+                        showButtons([
+                            { text: 'Upload photo', action: (text) => {
+                                addMessage(text, false);
+                                conversationState = 3;
+                                handleMessage('Upload photo');
+                            }},
+                            { text: 'Enter manually', action: (text) => {
+                                addMessage(text, false);
+                                conversationState = 3;
+                                handleMessage('Enter manually');
+                            }}
+                        ]);
+                        break;
                     
                     case 3:
                         if (message === 'Upload photo') {
-                            addMessage('Please upload a photo of your medication or medication label. Ensure the details are clearly visible.');
+                            addMessage('Please upload a photo of your medication or medication label. Please ensure the details are clearly visible.');
                             buttonArea.innerHTML = ''; // Clear buttons
                             textInputContainer.style.display = 'none';
                             fileUploadContainer.style.display = 'flex';
+
+                            // Add the Back button specifically for this state
+                            showButtons([{ text: 'Back', action: () => {
+                                chatWindow.innerHTML = '';
+                                conversationState = 9;
+                                handleMessage('back');
+                            }}]);
+
                         } else if (message === 'Enter manually') {
-                            addMessage('Please enter the name of the medication or supplement you want to add.');
+                            addMessage('Please enter the name of the medication you want to add.');
                             buttonArea.innerHTML = ''; // Clear buttons
                             textInputContainer.style.display = 'flex';
                             fileUploadContainer.style.display = 'none';
+                            
+                            // Add the Back button specifically for this state
+                            showButtons([{ text: 'Back', action: () => {
+                                chatWindow.innerHTML = '';
+                                conversationState = 9;
+                                handleMessage('back');
+                            }}]);
                         } else {
                             // User has entered a manual medication
                             const newMedication = message;
@@ -432,7 +457,6 @@
                                 textInputContainer.style.display = 'flex';
                                 fileUploadContainer.style.display = 'none';
                             }}]);
-
                         } else {
                             // Loop back to adding more medications
                             conversationState = 3;
@@ -451,6 +475,7 @@
             sendButton.addEventListener('click', () => {
                 const message = userInput.value.trim();
                 if (message) {
+                    addMessage(message, false);
                     handleMessage(message);
                     userInput.value = ''; // Clear input field
                 }
@@ -475,7 +500,7 @@
                         const mockInstructions = '1 tablet daily, as needed';
                         const mockPurpose = 'For allergic rhinitis';
                         
-                        addMessage(`Based on your photo, I found:<br><b>${mockMedication}</b><br>Instructions: <b>${mockInstructions}</b></b><br>Purpose: ${mockPurpose}`, true, true);
+                        addMessage(`Based on your photo, I found:<br><b>${mockMedication}</b><br>Instructions: <b>${mockInstructions}</b><br>Purpose: ${mockPurpose}`, true, true);
                         addMessage('Is this correct?');
                         
                         showButtons([
@@ -497,11 +522,12 @@
                     addMessage('Please select a photo to upload.', true);
                 }
             });
-
+            
             // Start the conversation
             handleMessage('start');
         });
     </script>
 </body>
 </html>
+
 
