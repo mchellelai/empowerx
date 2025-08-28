@@ -326,6 +326,11 @@
                                 addMessage(text, false);
                                 conversationState = 3;
                                 handleMessage('Enter manually');
+                            }},
+                            { text: 'Back', action: () => {
+                                chatWindow.innerHTML = '';
+                                conversationState = 0;
+                                handleMessage('back');
                             }}
                         ]);
                         break;
@@ -345,7 +350,7 @@
                             }}]);
 
                         } else if (message === 'Enter manually') {
-                            addMessage('Please enter the name of the medication you want to add.');
+                            addMessage('Please enter the name of the medication or supplement you want to add.');
                             buttonArea.innerHTML = ''; // Clear buttons
                             textInputContainer.style.display = 'flex';
                             fileUploadContainer.style.display = 'none';
@@ -529,5 +534,6 @@
     </script>
 </body>
 </html>
+
 
 
