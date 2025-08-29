@@ -8,14 +8,6 @@
         This is a single-file application, which makes it ideal for
         static website hosting platforms like GitHub Pages.
         All CSS and JavaScript are included directly in this file.
-
-        Deployment notes for GitHub Pages:
-        If you are seeing a "Cannot GET /" error, it typically means the GitHub Pages
-        server cannot find the index.html file. Please check your repository settings
-        under 'Pages' to ensure the following:
-        - The source is set to the correct branch (e.g., 'main' or 'gh-pages').
-        - The folder is set to '/' (root) or the directory where this file is located.
-        - The file is correctly named 'index.html' and is located in the root of the selected branch.
     -->
 
     <!-- Tailwind CSS CDN for modern styling -->
@@ -173,10 +165,11 @@
     </div>
 
     <script>
-        // Main script for chatbot logic
         document.addEventListener('DOMContentLoaded', () => {
 
-            // DOM elements
+            // ===================================
+            // DOM Elements
+            // ===================================
             const chatWindow = document.getElementById('chat-window');
             const buttonArea = document.getElementById('button-area');
             const textInputContainer = document.getElementById('text-input-container');
@@ -186,22 +179,23 @@
             const photoUploadInput = document.getElementById('photo-upload');
             const uploadButton = document.getElementById('upload-button');
 
-            // Conversation state and data
+            // ===================================
+            // State Variables
+            // ===================================
             let conversationState = 0;
             let currentMedications = [];
-            // Variables for new manual entry flow
             let manualEntryStep = 0;
             let tempManualMed = {};
-            // New variable for medication review loop
             let medsReviewIndex = 0;
 
-            // Helper function to capitalize the first letter of a string
+            // ===================================
+            // Helper Functions
+            // ===================================
             const capitalizeFirstLetter = (string) => {
                 if (!string) return '';
                 return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
             };
 
-            // Helper function to render the medication list
             const renderMedicationList = (medList) => {
                 const htmlList = medList.map((med, index) => {
                     return `<li>${index + 1}. <b>${med.name}</b><br>Instructions: ${med.instructions}<br>Supplied by: ${med.supplied}</li>`;
@@ -209,7 +203,6 @@
                 return `<ul class="message-list">${htmlList}</ul>`;
             };
 
-            // Add a message to the chat window
             const addMessage = (text, isBot = true, isHTML = false) => {
                 const messageBubble = document.createElement('div');
                 messageBubble.classList.add('message-bubble', isBot ? 'bot-message' : 'user-message');
@@ -219,11 +212,9 @@
                     messageBubble.textContent = text;
                 }
                 chatWindow.appendChild(messageBubble);
-                // Auto-scroll to the bottom
                 chatWindow.scrollTop = chatWindow.scrollHeight;
             };
 
-            // Add a photo to the chat window
             const addPhoto = (file) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
@@ -240,10 +231,8 @@
                 reader.readAsDataURL(file);
             };
 
-            // Display dynamic buttons based on state
             const showButtons = (buttons) => {
-                buttonArea.innerHTML = ''; // Clear previous buttons
-                
+                buttonArea.innerHTML = '';
                 buttons.forEach(btn => {
                     const button = document.createElement('button');
                     button.textContent = btn.text;
@@ -253,382 +242,340 @@
                 });
             };
 
-            // Main chatbot logic based on conversation state
+            // ===================================
+            // State Logic Functions
+            // ===================================
+
+            const startConversation = () => {
+                addMessage('Hello there! I am Ember from EmpoweRx, here to help you update your medication list!');
+                addMessage('First, let\'s retrieve your medication list from HealthHub/ EmpoweRx!');
+                showButtons([
+                    { text: 'Login with SingPass', action: (text) => {
+                        addMessage(text, false);
+                        window.open('https://portal.singpass.gov.sg/home/ui/login', '_blank');
+                        conversationState = 1;
+                        handleMessage(text);
+                    }},
+                    { text: 'Start a New List', action: (text) => {
+                        addMessage(text, false);
+                        chatWindow.innerHTML = '';
+                        conversationState = 9;
+                        currentMedications = [];
+                        handleMessage(text);
+                        textInputContainer.style.display = 'flex';
+                        fileUploadContainer.style.display = 'none';
+                    }}
+                ]);
+            };
+
+            const handleInitialReview = () => {
+                addMessage('We have retrieved your current medication list from HealthHub.')
+                addMessage(' You currently have these 3 medications on the list:');
+                const newMedList = [
+                    { name: 'Dapagliflozin 10mg Tablet', instructions: 'Take 1 tablet once daily', supplied: '90 tablets from Singapore General Hospital on 1 Jun 2023' },
+                    { name: 'Amlodipine 5mg Tablet (Norvasc)', instructions: 'Take 1 tablet once daily', supplied: '90 tablets from Singapore General Hospital on 1 Jun 2023' },
+                    { name: 'Simvastatin 10mg Tablet (Simvor)', instructions: 'Take 1 tablet at night', supplied: '90 tablets from Singapore General Hospital on 1 Jun 2023' }
+                ];
+                currentMedications = newMedList;
+                addMessage(renderMedicationList(currentMedications), true, true);
+                addMessage('Are you taking the above medications according to the stated instructions?');
+                showButtons([
+                    { text: 'Yes', action: (text) => {
+                        addMessage(text, false);
+                        conversationState = 2;
+                        handleMessage(text);
+                    }},
+                    { text: 'No', action: (text) => {
+                        addMessage(text, false);
+                        medsReviewIndex = 0;
+                        conversationState = 13;
+                        handleMessage('start_review');
+                    }}
+                ]);
+            };
+
+            const askToAddMore = () => {
+                addMessage('Great! Do you have any other medications/supplements to add?<br>You may also add any supplements, vitamins or Traditional Chinese Medicine to the list.', true, true);
+                showButtons([
+                    { text: 'Yes', action: (text) => {
+                        addMessage(text, false);
+                        conversationState = 9;
+                        handleMessage(text);
+                    }},
+                    { text: 'No', action: (text) => {
+                        addMessage(text, false);
+                        conversationState = 8;
+                        handleMessage(text);
+                    }}
+                ]);
+            };
+
+            const showAddOptions = () => {
+                addMessage('How would you like to do it?');
+                showButtons([
+                    { text: 'Upload photo', action: (text) => {
+                        addMessage(text, false);
+                        conversationState = 3;
+                        handleMessage('Upload photo');
+                    }},
+                    { text: 'Enter manually', action: (text) => {
+                        addMessage(text, false);
+                        conversationState = 10;
+                        manualEntryStep = 0;
+                        handleMessage('Enter manually');
+                    }},
+                    { text: 'Back', action: () => {
+                        chatWindow.innerHTML = '';
+                        conversationState = 0;
+                        handleMessage('back');
+                    }}
+                ]);
+            };
+
+            const handleManualEntry = (message) => {
+                textInputContainer.style.display = 'flex';
+                fileUploadContainer.style.display = 'none';
+                buttonArea.innerHTML = '';
+                showButtons([{ text: 'Back', action: () => {
+                    chatWindow.innerHTML = '';
+                    conversationState = 9;
+                    handleMessage('back');
+                }}]);
+
+                if (manualEntryStep === 0) {
+                    addMessage('Please enter the name of the medication or supplement (e.g. Paracetamol).');
+                    manualEntryStep = 1;
+                } else if (manualEntryStep === 1) {
+                    tempManualMed.name = capitalizeFirstLetter(message);
+                    addMessage('Please enter where the medication was supplied from (e.g. Watsons Pharmacy).');
+                    manualEntryStep = 2;
+                } else if (manualEntryStep === 2) {
+                    tempManualMed.supplied = capitalizeFirstLetter(message);
+                    addMessage('Please enter the dosage instructions (e.g. 2 tablets, 4 times daily).');
+                    manualEntryStep = 3;
+                } else if (manualEntryStep === 3) {
+                    tempManualMed.instructions = capitalizeFirstLetter(message);
+                    currentMedications.push({ ...tempManualMed }); // Use spread operator to create a new object
+                    
+                    addMessage(`I have added the following to your list:<br><b>${tempManualMed.name}</b><br>Instructions: ${tempManualMed.instructions}<br>Supplied by: ${tempManualMed.supplied}`, true, true);
+                    addMessage('This is your updated medication list.');
+                    addMessage(renderMedicationList(currentMedications), true, true);
+                    
+                    tempManualMed = {}; // Reset the temporary object
+                    manualEntryStep = 0; // Reset the step for the next entry
+                    
+                    conversationState = 2;
+                    handleMessage('continue_to_add_more');
+                }
+            };
+
+            const handleMedicationReview = (message) => {
+                // If all medications have been reviewed, go to final summary
+                if (medsReviewIndex >= currentMedications.length) {
+                    conversationState = 15;
+                    handleMessage('review_complete');
+                    return;
+                }
+
+                const medToReview = currentMedications[medsReviewIndex];
+                
+                // This block handles displaying the medication to review
+                if (message === 'start_review' || message === 'next_med') {
+                    textInputContainer.style.display = 'none';
+                    addMessage(`Let's review the medication <b>${medToReview.name}</b>.`, true, true);
+                    addMessage(`Current Instructions: ${medToReview.instructions}`, true, false);
+                    addMessage('Are you still taking this medication and is the dose correct?');
+                    showButtons([
+                        { text: 'Yes, but with different instructions', action: () => {
+                            addMessage('Yes, but with different instructions', false);
+                            // This action only changes the state and shows the input box.
+                            // The actual instruction update will happen on user's next message.
+                            textInputContainer.style.display = 'flex';
+                            buttonArea.innerHTML = '';
+                            addMessage('Please enter the new dosage instructions.', true, false);
+                            conversationState = 14;
+                        }},
+                        { text: 'No, remove from list', action: (text) => {
+                            addMessage(text, false);
+                            addMessage(`<b>${medToReview.name}</b> has been removed from your list.`, true, true);
+                            currentMedications.splice(medsReviewIndex, 1);
+                            handleMessage('next_med');
+                        }}
+                    ]);
+                }
+            };
+            
+            const handleFinalSummary = () => {
+                if (currentMedications.length === 0) {
+                    addMessage('There is currently no medications on your list.');
+                } else {
+                    addMessage('Based on our review, here is your updated medication list:');
+                    addMessage(renderMedicationList(currentMedications), true, true);
+                }
+                addMessage('Do you have any other medications/supplements to add? You may also add any supplements, vitamins or Traditional Chinese Medicine to the list.');
+                showButtons([
+                    { text: 'Yes', action: (text) => {
+                        addMessage(text, false);
+                        conversationState = 9;
+                        handleMessage(text);
+                    }},
+                    { text: 'No', action: (text) => {
+                        addMessage(text, false);
+                        conversationState = 8;
+                        handleMessage(text);
+                    }}
+                ]);
+            };
+
+            // ===================================
+            // Main Message Dispatcher
+            // ===================================
             const handleMessage = (message) => {
-                // Clear the chat window before displaying a new state, except for user input messages
                 if (message === 'back') {
-                     chatWindow.innerHTML = '';
+                    chatWindow.innerHTML = '';
+                    startConversation();
+                    return;
                 }
 
                 switch (conversationState) {
                     case 0:
-                        addMessage('Hello there! I am Ember from EmpoweRx, here to help you update your medication list!');
-                        addMessage('First, let\'s retrieve your medication list from HealthHub/ EmpoweRx!');
-                        showButtons([
-                          { text: 'Login with SingPass', action: (text) => {
-                              addMessage(text, false);
-                              // Redirect to the HealthHub login page in a new tab
-                              window.open('https://portal.singpass.gov.sg/home/ui/login', '_blank');
-                              
-                              conversationState = 1;
-                              handleMessage(text);
-                          } },
-                          { text: 'Start a New List', action: (text) => {
-                              addMessage(text, false);
-                              chatWindow.innerHTML = '';
-                              conversationState = 9; // Link to the new 'How would you like to do it?' state
-                              currentMedications = [];
-                              handleMessage(text);
-                              textInputContainer.style.display = 'flex';
-                              fileUploadContainer.style.display = 'none';
-                          } }
-                        ]);
+                        startConversation();
                         break;
-                    
                     case 1:
-                        // Display the new, more detailed list
-                        addMessage('We have retrieved your current medication list from HealthHub.')
-                        addMessage(' You currently have these 3 medications on the list:');
-                        const newMedList = [
-                            {
-                                name: 'Dapagliflozin 10mg Tablet',
-                                instructions: 'Take 1 tablet once daily',
-                                supplied: '90 tablets from Singapore General Hospital on 1 Jun 2023'
-                            },
-                            {
-                                name: 'Amlodipine 5mg Tablet (Norvasc)',
-                                instructions: 'Take 1 tablet once daily',
-                                supplied: '90 tablets from Singapore General Hospital on 1 Jun 2023'
-                            },
-                            {
-                                name: 'Simvastatin 10mg Tablet (Simvor)',
-                                instructions: 'Take 1 tablet at night',
-                                supplied: '90 tablets from Singapore General Hospital on 1 Jun 2023'
-                            }
-                        ];
-
-                        // Update the currentMedications array with the new list
-                        currentMedications = newMedList;
-
-                        // Display the list as an HTML unordered list
-                        addMessage(renderMedicationList(currentMedications), true, true);
-
-                        addMessage('Are you taking the above medications according to the stated instructions?');
-                        showButtons([
-                            { text: 'Yes', action: (text) => {
-                                addMessage(text, false);
-                                conversationState = 2;
-                                handleMessage(text);
-                            } },
-                            { text: 'No', action: (text) => {
-                                addMessage(text, false);
-                                // Start the review loop
-                                medsReviewIndex = 0;
-                                conversationState = 13;
-                                handleMessage('start_review');
-                            } }
-                        ]);
+                        handleInitialReview();
                         break;
-                    
                     case 2:
-                        addMessage('Great! Do you have any other medications/supplements to add?<br>You may also add any supplements, vitamins or Traditional Chinese Medicine to the list.', true, true);
-                        showButtons([
-                            { text: 'Yes', action: (text) => {
-                                addMessage(text, false);
-                                conversationState = 9; // Link to the new 'How would you like to do it?' state
-                                handleMessage(text);
-                            }},
-                            { text: 'No', action: (text) => {
-                                addMessage(text, false);
-                                conversationState = 8;
-                                handleMessage(text);
-                            }}
-                        ]);
+                        askToAddMore();
                         break;
-
-                    case 9:
-                        addMessage('How would you like to do it?');
-                        showButtons([
-                            { text: 'Upload photo', action: (text) => {
-                                addMessage(text, false);
-                                conversationState = 3;
-                                handleMessage('Upload photo');
-                            }},
-                            { text: 'Enter manually', action: (text) => {
-                                addMessage(text, false);
-                                conversationState = 10;
-                                manualEntryStep = 0;
-                                handleMessage('Enter manually');
-                            }},
-                            { text: 'Back', action: () => {
-                                chatWindow.innerHTML = '';
-                                conversationState = 0;
-                                handleMessage('back');
-                            }}
-                        ]);
-                        break;
-                    
                     case 3:
+                        // Photo upload flow
                         if (message === 'Upload photo') {
                             addMessage('Please upload a photo of your medication or medication label. Please ensure the details are clearly visible.');
-                            buttonArea.innerHTML = ''; // Clear buttons
+                            buttonArea.innerHTML = '';
                             textInputContainer.style.display = 'none';
                             fileUploadContainer.style.display = 'flex';
-
-                            // Add the Back button specifically for this state
                             showButtons([{ text: 'Back', action: () => {
                                 chatWindow.innerHTML = '';
                                 conversationState = 9;
                                 handleMessage('back');
                             }}]);
-                        } else if (message === 'Dapagliflozin') { // Handling mock photo upload
+                        } else {
+                            // Mock handling after upload button click
                             addMessage(`I found "${message}" in your photo.`);
                             addMessage('What is the strength of the tablet you are taking? The tablets usually come in 5mg and 10mg.');
                             showButtons([{ text: 'Yes', action: (text) => {
                                 addMessage(text, false);
-                                conversationState = 6;
-                                handleMessage(text);
-                            } }]);
-                        }
-                        break;
-
-                    case 10:
-                        textInputContainer.style.display = 'flex';
-                        fileUploadContainer.style.display = 'none';
-                        buttonArea.innerHTML = '';
-                        
-                        // Add the Back button for this state
-                        showButtons([{ text: 'Back', action: () => {
-                            chatWindow.innerHTML = '';
-                            conversationState = 9;
-                            handleMessage('back');
-                        }}]);
-
-                        if (manualEntryStep === 0) {
-                            addMessage('Please enter the name of the medication or supplement (e.g. Paracetamol).');
-                            manualEntryStep = 1;
-                        } else if (manualEntryStep === 1) {
-                            tempManualMed.name = capitalizeFirstLetter(message);
-                            addMessage('Please enter where the medication was supplied from (e.g. Watsons Pharmacy).');
-                            manualEntryStep = 2;
-                        } else if (manualEntryStep === 2) {
-                            tempManualMed.supplied = capitalizeFirstLetter(message);
-                            addMessage('Please enter the dosage instructions (e.g. 2 tablets, 4 times daily).');
-                            manualEntryStep = 3;
-                        } else if (manualEntryStep === 3) {
-                            tempManualMed.instructions = capitalizeFirstLetter(message);
-                            
-                            currentMedications.push({
-                                name: tempManualMed.name,
-                                supplied: tempManualMed.supplied,
-                                instructions: tempManualMed.instructions
-                            });
-                            
-                            addMessage(`I have added the following to your list:<br><b>${tempManualMed.name}</b><br>Instructions: ${tempManualMed.instructions}<br>Supplied by: ${tempManualMed.supplied}`, true, true);
-                            
-                            addMessage('This is your updated medication list.');
-                            addMessage(renderMedicationList(currentMedications), true, true);
-
-                            conversationState = 2; // Transition to state 2 to ask about adding more
-                            handleMessage('continue_to_add_more');
-                        }
-                        break;
-                    
-                    case 11:
-                        textInputContainer.style.display = 'flex';
-                        fileUploadContainer.style.display = 'none';
-                        buttonArea.innerHTML = '';
-                        addMessage('Please enter where the medication was supplied from (e.g. Watsons Pharmacy).', true, false);
-                        conversationState = 12;
-                        break;
-
-                    case 12:
-                        tempManualMed.supplied = capitalizeFirstLetter(message);
-                        currentMedications.push({
-                            name: tempManualMed.name,
-                            instructions: tempManualMed.instructions,
-                            supplied: tempManualMed.supplied
-                        });
-
-                        addMessage(`I have added the following to your list:<br><b>${tempManualMed.name}</b><br>Instructions: ${tempManualMed.instructions}<br>Supplied by: ${tempManualMed.supplied}`, true, true);
-                            
-                        addMessage('This is your updated medication list.');
-                        addMessage(renderMedicationList(currentMedications), true, true);
-
-                        conversationState = 2; // Transition to state 2 to ask about adding more
-                        handleMessage('continue_to_add_more');
-                        break;
-
-                    case 13: // Medication review loop
-                        if (medsReviewIndex >= currentMedications.length) {
-                            // All medications reviewed, move to the next state to ask about adding more
-                            conversationState = 15;
-                            handleMessage('review_complete');
-                            return;
-                        }
-                        
-                        textInputContainer.style.display = 'none';
-
-                        const medToReview = currentMedications[medsReviewIndex];
-                        addMessage(`Let's review the medication <b>${medToReview.name}</b>.`, true, true);
-                        addMessage(`Current Instructions: ${medToReview.instructions}`, true, false);
-                        addMessage('Are you still taking this medication and is the dose correct?');
-                        
-                        showButtons([
-                            { text: 'Yes, but with different instructions', action: (text) => {
-                                addMessage(text, false);
-                                conversationState = 14;
-                                handleMessage('update_instructions');
-                            }},
-                            { text: 'No, remove from list', action: (text) => {
-                                addMessage(text, false);
-                                addMessage(`<b>${medToReview.name}</b> has been removed from your list.`, true, true);
-                                currentMedications.splice(medsReviewIndex, 1);
-                                handleMessage('next_med'); // Continue to next medication
-                            }}
-                        ]);
-                        break;
-
-                    case 14: // Get new instructions
-                        textInputContainer.style.display = 'flex';
-                        buttonArea.innerHTML = '';
-                        
-                        if (message === 'update_instructions') {
-                             addMessage('Please enter the new dosage instructions.', true, false);
-                        } else {
-                            currentMedications[medsReviewIndex].instructions = capitalizeFirstLetter(message);
-                            addMessage(`Instructions for <b>${currentMedications[medsReviewIndex].name}</b> have been updated.`, true, true);
-                            medsReviewIndex++; // Move to the next medication
-                            conversationState = 13;
-                            handleMessage('next_med');
-                        }
-                        break;
-                    
-                    case 15: // New state to ask about adding more medications
-                        if (currentMedications.length === 0) {
-                            addMessage('There is currently no medications on your list.');
-                        } else {
-                            addMessage('Based on our review, here is your updated medication list:');
-                            addMessage(renderMedicationList(currentMedications), true, true);
-                        }
-
-                        addMessage('Do you have any other medications/supplements to add? You may also add any supplements, vitamins or Traditional Chinese Medicine to the list.');
-                        showButtons([
-                            { text: 'Yes', action: (text) => {
-                                addMessage(text, false);
-                                conversationState = 9; // Go to the 'How would you like to do it?' state
-                                handleMessage(text);
+                                tempManualMed.name = mockMedication;
+                                tempManualMed.instructions = mockInstructions;
+                                conversationState = 11;
+                                handleMessage('photo_correct');
                             }},
                             { text: 'No', action: (text) => {
                                 addMessage(text, false);
-                                conversationState = 8; // Go to the final list summary
-                                handleMessage(text);
+                                addMessage('No problem! Let\'s start over. What would you like to do?');
+                                conversationState = 2;
+                                handleMessage('start over');
                             }}
-                        ]);
+                            ]);
+                        }
                         break;
-
-                    case 4:
-                        // This case is now only for the photo upload path, but not used in the manual entry
+                    case 9:
+                        showAddOptions();
                         break;
-
-                    case 5:
-                        // This state is not currently used, but could be used for other purposes
+                    case 10:
+                        handleManualEntry(message);
                         break;
+                    case 11:
+                        // Make sure the input field is visible and prompt for the next step
+                        textInputContainer.style.display = 'flex';
+                        buttonArea.innerHTML = '';
+                        addMessage('Please enter where the medication was supplied from (e.g. Watsons Pharmacy).');
+                        conversationState = 12;
+                        break;
+                    case 12:
+                        tempManualMed.supplied = capitalizeFirstLetter(message);
+                        currentMedications.push({ ...tempManualMed }); // Use spread operator to create a new object
                         
-                    case 6:
-                        // This case is now only for the photo upload path, but not used in the manual entry
+                        addMessage(`I have added the following to your list:<br><b>${tempManualMed.name}</b><br>Instructions: ${tempManualMed.instructions}<br>Supplied by: ${tempManualMed.supplied}`, true, true);
+                        addMessage('This is your updated medication list.');
+                        addMessage(renderMedicationList(currentMedications), true, true);
+                        
+                        tempManualMed = {}; // Reset temporary object
+                        
+                        conversationState = 2;
+                        handleMessage('continue_to_add_more');
                         break;
-
-                    case 7:
-                        if (message === 'Yes') {
-                            addMessage('Great. Do you need to add more?');
-                            showButtons([{ text: 'Yes', action: (text) => {
-                                addMessage(text, false);
-                                conversationState = 9; // Go back to the 'add more' loop
-                                handleMessage(text);
-                            }}, { text: 'No', action: (text) => {
-                                addMessage(text, false);
-                                conversationState = 8;
-                                handleMessage(text);
-                            }}]);
-                        } else {
-                            // Reset conversation if user says no
-                            addMessage('No problem! Let\'s start over. What would you like to do?');
-                            conversationState = 0;
-                            handleMessage('start');
-                        }
+                    case 13:
+                        handleMedicationReview(message);
                         break;
-                    
+                    case 14:
+                        // This case is ONLY for handling the user's TEXT INPUT
+                        currentMedications[medsReviewIndex].instructions = capitalizeFirstLetter(message);
+                        addMessage(`Instructions for <b>${currentMedications[medsReviewIndex].name}</b> have been updated.`, true, true);
+                        medsReviewIndex++;
+                        conversationState = 13;
+                        // Since the action is complete, immediately move to the next review step
+                        handleMessage('next_med');
+                        break;
+                    case 15:
+                        handleFinalSummary();
+                        break;
                     case 8:
-                        if (message === 'No') {
-                            if (currentMedications.length === 0) {
-                                addMessage('There is currently no medications on your list.');
-                            } else {
-                                addMessage('Here is your final medication list for review:');
-                                addMessage(renderMedicationList(currentMedications), true, true);
-                            }
-                            
-                            addMessage('Great! I will proceed to save this list. Your healthcare provider will now be able to access your latest medication list from EmpoweRx.');
-                            addMessage('Thank you for taking charge of your health! Chat with me again whenever you need to updated your medication list.');
-                            buttonArea.innerHTML = '';
-                            textInputContainer.style.display = 'none';
-                            fileUploadContainer.style.display = 'none';
-
-                            // Add the restart button at the end
-                            showButtons([{ text: 'Update your medication list', action: () => {
-                                // Clear conversation and reset state
-                                chatWindow.innerHTML = '';
-                                conversationState = 0;
-                                currentMedications = [];
-                                handleMessage('start');
-                                textInputContainer.style.display = 'flex';
-                                fileUploadContainer.style.display = 'none';
-                            }}]);
+                        if (currentMedications.length === 0) {
+                            addMessage('There is currently no medications on your list.');
                         } else {
-                            // Loop back to adding more medications
-                            conversationState = 3;
-                            handleMessage('Enter manually');
+                            addMessage('Here is your final medication list for review:');
+                            addMessage(renderMedicationList(currentMedications), true, true);
                         }
+                        addMessage('Great! I will proceed to save this list. Your healthcare provider will now be able to access your latest medication list from EmpoweRx.');
+                        addMessage('Thank you for taking charge of your health! Chat with me again whenever you need to updated your medication list.');
+                        buttonArea.innerHTML = '';
+                        textInputContainer.style.display = 'none';
+                        fileUploadContainer.style.display = 'none';
+                        showButtons([{ text: 'Update your medication list', action: () => {
+                            chatWindow.innerHTML = '';
+                            conversationState = 0;
+                            currentMedications = [];
+                            handleMessage('start');
+                            textInputContainer.style.display = 'flex';
+                            fileUploadContainer.style.display = 'none';
+                        }}]);
                         break;
                     default:
-                        // Reset if an unexpected state is reached
                         conversationState = 0;
                         handleMessage('start');
                         break;
                 }
             };
 
-            // Event listener for the "Send" button
+            // ===================================
+            // Event Listeners
+            // ===================================
             sendButton.addEventListener('click', () => {
                 const message = userInput.value.trim();
                 if (message) {
                     addMessage(message, false);
                     handleMessage(message);
-                    userInput.value = ''; // Clear input field
+                    userInput.value = '';
                 }
             });
 
-            // Allow sending by pressing Enter key
             userInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     sendButton.click();
                 }
             });
 
-            // Event listener for the "Upload Photo" button
             uploadButton.addEventListener('click', () => {
                 const file = photoUploadInput.files[0];
                 if (file) {
-                    addPhoto(file); // Display the photo
+                    addPhoto(file);
                     addMessage(`Uploading photo of ${file.name}...`);
-                    
                     setTimeout(() => {
                         const mockMedication = capitalizeFirstLetter('Fexofenadine Hydrochloride 120mg');
                         const mockInstructions = capitalizeFirstLetter('1 tablet daily, as needed');
-                        
                         addMessage(`Based on your photo, I found:<br><b>${mockMedication}</b><br>Instructions: <b>${mockInstructions}</b>`, true, true);
                         addMessage('Is this correct?');
-                        
                         showButtons([
                             { text: 'Yes', action: (text) => {
                                 addMessage(text, false);
@@ -640,20 +587,21 @@
                             { text: 'No', action: (text) => {
                                 addMessage(text, false);
                                 addMessage('No problem! Let\'s start over. What would you like to do?');
-                                conversationState = 2; // Go back to the 'add more' loop
+                                conversationState = 2;
                                 handleMessage('start over');
                             }}
                         ]);
-                    }, 1000); // Wait 1 second to simulate processing
+                    }, 1000);
                 } else {
                     addMessage('Please select a photo to upload.', true);
                 }
             });
-            
+
             // Start the conversation
             handleMessage('start');
         });
     </script>
 </body>
 </html>
+
 
