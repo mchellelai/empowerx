@@ -505,9 +505,14 @@
                         break;
                     
                     case 15: // New state to ask about adding more medications
-                        addMessage('Based on our review, here is your updated medication list:');
-                        addMessage(renderMedicationList(currentMedications), true, true);
-                        addMessage('Do you have any other medications/supplements to add?');
+                        if (currentMedications.length === 0) {
+                            addMessage('There is currently no medications on your list.');
+                        } else {
+                            addMessage('Based on our review, here is your updated medication list:');
+                            addMessage(renderMedicationList(currentMedications), true, true);
+                        }
+
+                        addMessage('Do you have any other medications/supplements to add? You may also add any supplements, vitamins or Traditional Chinese Medicine to the list.');
                         showButtons([
                             { text: 'Yes', action: (text) => {
                                 addMessage(text, false);
@@ -556,8 +561,12 @@
                     
                     case 8:
                         if (message === 'No') {
-                            addMessage('Here is your final medication list for review:');
-                            addMessage(renderMedicationList(currentMedications), true, true);
+                            if (currentMedications.length === 0) {
+                                addMessage('There is currently no medications on your list.');
+                            } else {
+                                addMessage('Here is your final medication list for review:');
+                                addMessage(renderMedicationList(currentMedications), true, true);
+                            }
                             
                             addMessage('Great! I will proceed to save this list. Your healthcare provider will now be able to access your latest medication list from EmpoweRx.');
                             addMessage('Thank you for taking charge of your health! Chat with me again whenever you need to updated your medication list.');
@@ -647,3 +656,4 @@
     </script>
 </body>
 </html>
+
