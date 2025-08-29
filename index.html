@@ -187,6 +187,7 @@
             let manualEntryStep = 0;
             let tempManualMed = {};
             let medsReviewIndex = 0;
+            let isProcessing = false;
 
             // ===================================
             // Helper Functions
@@ -198,7 +199,7 @@
 
             const renderMedicationList = (medList) => {
                 const htmlList = medList.map((med, index) => {
-                    return `<li>${index + 1}. <b>${med.name}</b><br>Instructions: ${med.instructions}<br>Supplied by: ${med.supplied}</li>`;
+                    return `<li>${index + 1}. <b>${med.name} ${med.strength}</b><br>Instructions: ${med.instructions}<br>Supplied by: ${med.supplied}</li>`;
                 }).join('');
                 return `<ul class="message-list">${htmlList}</ul>`;
             };
@@ -242,6 +243,99 @@
                 });
             };
 
+            const showLoadingMessage = () => {
+                addMessage('Processing image...');
+            };
+
+            // ===================================
+            // Gemini API Integration
+            // ===================================
+            async function identifyMedicationFromImage(file) {
+                isProcessing = true;
+                showLoadingMessage();
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const base64ImageData = e.target.result.split(',')[1];
+                    // Updated prompt to focus only on medication name and strength, and to be more specific
+                    const prompt = "Act as a pharmacist. Analyze the provided image of a medication or its packaging. Your goal is to extract the medication's full name, including any brand or generic names, and its strength (e.g., '10mg' or '500mg'). Return this information as a JSON object with keys: 'medication' and 'strength'. If a detail is not found, use an empty string for its value.";
+                    const payload = {
+                        contents: [
+                            {
+                                role: "user",
+                                parts: [
+                                    { text: prompt },
+                                    {
+                                        inlineData: {
+                                            mimeType: file.type,
+                                            data: base64ImageData
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "OBJECT",
+                                properties: {
+                                    "medication": { "type": "STRING" },
+                                    "strength": { "type": "STRING" }
+                                }
+                            }
+                        }
+                    };
+
+                    const apiKey = "";
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                    
+                    try {
+                        let response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`API error: ${response.statusText}`);
+                        }
+
+                        const result = await response.json();
+                        const rawJson = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                        const data = JSON.parse(rawJson);
+                        
+                        // Populate tempManualMed with the extracted data
+                        tempManualMed.name = data.medication || 'Unknown Medication';
+                        tempManualMed.strength = data.strength || 'No strength found';
+                        tempManualMed.instructions = ''; // Instructions will be manually entered
+                        tempManualMed.supplied = ''; // Supplier will be manually entered
+
+                        // Display the extracted medication name and strength for confirmation
+                        addMessage(`Based on your photo, I found:<br><b>${tempManualMed.name} ${tempManualMed.strength}</b>`, true, true);
+                        addMessage('Is this correct?');
+                        
+                        // Set conversation state for confirmation
+                        conversationState = 17;
+                        textInputContainer.style.display = 'none';
+                        fileUploadContainer.style.display = 'none';
+                        showButtons([
+                            { text: "Yes, that's correct", action: () => handleMessage("Yes, that's correct") },
+                            { text: "No, enter manually", action: () => handleMessage("No, enter manually") }
+                        ]);
+
+                    } catch (error) {
+                        console.error('Error identifying medication from image:', error);
+                        addMessage('I was unable to identify the medication from the photo. Please try again or enter the details manually.');
+                        showButtons([
+                            { text: 'Try Again', action: () => handleMessage('Upload photo') },
+                            { text: 'Enter manually', action: () => handleMessage('Enter manually') }
+                        ]);
+                    } finally {
+                        isProcessing = false;
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+
             // ===================================
             // State Logic Functions
             // ===================================
@@ -272,9 +366,9 @@
                 addMessage('We have retrieved your current medication list from HealthHub.')
                 addMessage(' You currently have these 3 medications on the list:');
                 const newMedList = [
-                    { name: 'Dapagliflozin 10mg Tablet', instructions: 'Take 1 tablet once daily', supplied: '90 tablets from Singapore General Hospital on 1 Jun 2023' },
-                    { name: 'Amlodipine 5mg Tablet (Norvasc)', instructions: 'Take 1 tablet once daily', supplied: '90 tablets from Singapore General Hospital on 1 Jun 2023' },
-                    { name: 'Simvastatin 10mg Tablet (Simvor)', instructions: 'Take 1 tablet at night', supplied: '90 tablets from Singapore General Hospital on 1 Jun 2023' }
+                    { name: 'Dapagliflozin', strength: '10mg', instructions: 'Take 1 tablet once daily', supplied: '90 tablets from Singapore General Hospital on 1 Jun 2023' },
+                    { name: 'Amlodipine', strength: '5mg', instructions: 'Take 1 tablet once daily', supplied: '90 tablets from Singapore General Hospital on 1 Jun 2023' },
+                    { name: 'Simvastatin', strength: '10mg', instructions: 'Take 1 tablet at night', supplied: '90 tablets from Singapore General Hospital on 1 Jun 2023' }
                 ];
                 currentMedications = newMedList;
                 addMessage(renderMedicationList(currentMedications), true, true);
@@ -325,9 +419,10 @@
                         handleMessage('Enter manually');
                     }},
                     { text: 'Back', action: () => {
+                        addMessage("Back", false);
+                        // Corrected logic to go back to the previous step (askToAddMore)
                         chatWindow.innerHTML = '';
-                        conversationState = 0;
-                        handleMessage('back');
+                        askToAddMore();
                     }}
                 ]);
             };
@@ -347,17 +442,21 @@
                     manualEntryStep = 1;
                 } else if (manualEntryStep === 1) {
                     tempManualMed.name = capitalizeFirstLetter(message);
-                    addMessage('Please enter where the medication was supplied from (e.g. Watsons Pharmacy).');
+                    addMessage('Please enter the strength of the medication (e.g. 500mg).');
                     manualEntryStep = 2;
                 } else if (manualEntryStep === 2) {
-                    tempManualMed.supplied = capitalizeFirstLetter(message);
-                    addMessage('Please enter the dosage instructions (e.g. 2 tablets, 4 times daily).');
+                    tempManualMed.strength = message;
+                    addMessage('Please enter where the medication was supplied from (e.g. Watsons Pharmacy).');
                     manualEntryStep = 3;
                 } else if (manualEntryStep === 3) {
+                    tempManualMed.supplied = capitalizeFirstLetter(message);
+                    addMessage('Please enter the dosage instructions (e.g. 2 tablets, 4 times daily).');
+                    manualEntryStep = 4;
+                } else if (manualEntryStep === 4) {
                     tempManualMed.instructions = capitalizeFirstLetter(message);
                     currentMedications.push({ ...tempManualMed }); // Use spread operator to create a new object
                     
-                    addMessage(`I have added the following to your list:<br><b>${tempManualMed.name}</b><br>Instructions: ${tempManualMed.instructions}<br>Supplied by: ${tempManualMed.supplied}`, true, true);
+                    addMessage(`I have added the following to your list:<br><b>${tempManualMed.name} ${tempManualMed.strength}</b><br>Instructions: ${tempManualMed.instructions}<br>Supplied by: ${tempManualMed.supplied}`, true, true);
                     addMessage('This is your updated medication list.');
                     addMessage(renderMedicationList(currentMedications), true, true);
                     
@@ -382,7 +481,7 @@
                 // This block handles displaying the medication to review
                 if (message === 'start_review' || message === 'next_med') {
                     textInputContainer.style.display = 'none';
-                    addMessage(`Let's review the medication <b>${medToReview.name}</b>.`, true, true);
+                    addMessage(`Let's review the medication <b>${medToReview.name} ${medToReview.strength}</b>.`, true, true);
                     addMessage(`Current Instructions: ${medToReview.instructions}`, true, false);
                     addMessage('Are you still taking this medication and is the dose correct?');
                     showButtons([
@@ -397,7 +496,7 @@
                         }},
                         { text: 'No, remove from list', action: (text) => {
                             addMessage(text, false);
-                            addMessage(`<b>${medToReview.name}</b> has been removed from your list.`, true, true);
+                            addMessage(`<b>${medToReview.name} ${medToReview.strength}</b> has been removed from your list.`, true, true);
                             currentMedications.splice(medsReviewIndex, 1);
                             handleMessage('next_med');
                         }}
@@ -455,28 +554,13 @@
                             textInputContainer.style.display = 'none';
                             fileUploadContainer.style.display = 'flex';
                             showButtons([{ text: 'Back', action: () => {
+                                addMessage("Back", false);
+                                // Corrected logic to go back to the previous step (showAddOptions)
                                 chatWindow.innerHTML = '';
-                                conversationState = 9;
-                                handleMessage('back');
+                                showAddOptions();
                             }}]);
                         } else {
-                            // Mock handling after upload button click
-                            addMessage(`I found "${message}" in your photo.`);
-                            addMessage('What is the strength of the tablet you are taking? The tablets usually come in 5mg and 10mg.');
-                            showButtons([{ text: 'Yes', action: (text) => {
-                                addMessage(text, false);
-                                tempManualMed.name = mockMedication;
-                                tempManualMed.instructions = mockInstructions;
-                                conversationState = 11;
-                                handleMessage('photo_correct');
-                            }},
-                            { text: 'No', action: (text) => {
-                                addMessage(text, false);
-                                addMessage('No problem! Let\'s start over. What would you like to do?');
-                                conversationState = 2;
-                                handleMessage('start over');
-                            }}
-                            ]);
+                            // This case is no longer used, as the upload is handled by the event listener and async function.
                         }
                         break;
                     case 9:
@@ -485,23 +569,35 @@
                     case 10:
                         handleManualEntry(message);
                         break;
-                    case 11:
-                        // Make sure the input field is visible and prompt for the next step
-                        textInputContainer.style.display = 'flex';
-                        buttonArea.innerHTML = '';
-                        addMessage('Please enter where the medication was supplied from (e.g. Watsons Pharmacy).');
-                        conversationState = 12;
+                    case 17:
+                        // This is the new confirmation state after photo upload
+                        if (message === "Yes, that's correct") {
+                            addMessage("Great! Now, please enter the dosage instructions (e.g. 2 tablets, 4 times daily).", true);
+                            conversationState = 11;
+                            textInputContainer.style.display = 'flex';
+                            fileUploadContainer.style.display = 'none';
+                            buttonArea.innerHTML = '';
+                        } else if (message === "No, enter manually") {
+                            addMessage("No problem. Let's enter the details manually.", true);
+                            conversationState = 10;
+                            manualEntryStep = 0;
+                            handleMessage('Enter manually');
+                        }
                         break;
-                    case 12:
+                    case 11:
+                        // This state handles the instructions input after a photo upload
+                        tempManualMed.instructions = capitalizeFirstLetter(message);
+                        addMessage('Now, please enter where the medication was supplied from (e.g. Watsons Pharmacy).');
+                        conversationState = 16;
+                        break;
+                    case 16:
+                        // This new state handles the supplied by input after a photo upload
                         tempManualMed.supplied = capitalizeFirstLetter(message);
-                        currentMedications.push({ ...tempManualMed }); // Use spread operator to create a new object
-                        
-                        addMessage(`I have added the following to your list:<br><b>${tempManualMed.name}</b><br>Instructions: ${tempManualMed.instructions}<br>Supplied by: ${tempManualMed.supplied}`, true, true);
+                        currentMedications.push({ ...tempManualMed });
+                        addMessage(`I have added the following to your list:<br><b>${tempManualMed.name} ${tempManualMed.strength}</b><br>Instructions: ${tempManualMed.instructions}<br>Supplied by: ${tempManualMed.supplied}`, true, true);
                         addMessage('This is your updated medication list.');
                         addMessage(renderMedicationList(currentMedications), true, true);
-                        
-                        tempManualMed = {}; // Reset temporary object
-                        
+                        tempManualMed = {};
                         conversationState = 2;
                         handleMessage('continue_to_add_more');
                         break;
@@ -511,7 +607,7 @@
                     case 14:
                         // This case is ONLY for handling the user's TEXT INPUT
                         currentMedications[medsReviewIndex].instructions = capitalizeFirstLetter(message);
-                        addMessage(`Instructions for <b>${currentMedications[medsReviewIndex].name}</b> have been updated.`, true, true);
+                        addMessage(`Instructions for <b>${currentMedications[medsReviewIndex].name} ${currentMedications[medsReviewIndex].strength}</b> have been updated.`, true, true);
                         medsReviewIndex++;
                         conversationState = 13;
                         // Since the action is complete, immediately move to the next review step
@@ -570,28 +666,7 @@
                 const file = photoUploadInput.files[0];
                 if (file) {
                     addPhoto(file);
-                    addMessage(`Uploading photo of ${file.name}...`);
-                    setTimeout(() => {
-                        const mockMedication = capitalizeFirstLetter('Fexofenadine Hydrochloride 120mg');
-                        const mockInstructions = capitalizeFirstLetter('1 tablet daily, as needed');
-                        addMessage(`Based on your photo, I found:<br><b>${mockMedication}</b><br>Instructions: <b>${mockInstructions}</b>`, true, true);
-                        addMessage('Is this correct?');
-                        showButtons([
-                            { text: 'Yes', action: (text) => {
-                                addMessage(text, false);
-                                tempManualMed.name = mockMedication;
-                                tempManualMed.instructions = mockInstructions;
-                                conversationState = 11;
-                                handleMessage('photo_correct');
-                            }},
-                            { text: 'No', action: (text) => {
-                                addMessage(text, false);
-                                addMessage('No problem! Let\'s start over. What would you like to do?');
-                                conversationState = 2;
-                                handleMessage('start over');
-                            }}
-                        ]);
-                    }, 1000);
+                    identifyMedicationFromImage(file);
                 } else {
                     addMessage('Please select a photo to upload.', true);
                 }
@@ -603,5 +678,3 @@
     </script>
 </body>
 </html>
-
-
