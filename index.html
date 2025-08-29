@@ -248,7 +248,7 @@
             };
 
             // ===================================
-            // Gemini API Integration
+            // Gemini API Integration - NOW VIA PROXY
             // ===================================
             async function identifyMedicationFromImage(file) {
                 isProcessing = true;
@@ -256,52 +256,30 @@
                 const reader = new FileReader();
                 reader.onload = async (e) => {
                     const base64ImageData = e.target.result.split(',')[1];
-                    // Updated prompt to focus only on medication name and strength, and to be more specific
-                    const prompt = "Act as a pharmacist. Analyze the provided image of a medication or its packaging. Your goal is to extract the medication's full name, including any brand or generic names, and its strength (e.g., '10mg' or '500mg'). Return this information as a JSON object with keys: 'medication' and 'strength'. If a detail is not found, use an empty string for its value.";
                     const payload = {
-                        contents: [
-                            {
-                                role: "user",
-                                parts: [
-                                    { text: prompt },
-                                    {
-                                        inlineData: {
-                                            mimeType: file.type,
-                                            data: base64ImageData
-                                        }
-                                    }
-                                ]
-                            }
-                        ],
-                        generationConfig: {
-                            responseMimeType: "application/json",
-                            responseSchema: {
-                                type: "OBJECT",
-                                properties: {
-                                    "medication": { "type": "STRING" },
-                                    "strength": { "type": "STRING" }
-                                }
-                            }
+                        imageData: {
+                            mimeType: file.type,
+                            data: base64ImageData
                         }
                     };
 
-                    const apiKey = "";
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                    // !!! IMPORTANT CHANGE !!!
+                    // The API URL now points to your proxy server on Glitch.
+                    // This has been updated to use the URL you provided.
+                    const proxyUrl = 'https://empowerx.shieu-lai.workers.dev/analyze-image';
                     
                     try {
-                        let response = await fetch(apiUrl, {
+                        let response = await fetch(proxyUrl, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payload)
                         });
 
                         if (!response.ok) {
-                            throw new Error(`API error: ${response.statusText}`);
+                            throw new Error(`Proxy server error: ${response.statusText}`);
                         }
 
-                        const result = await response.json();
-                        const rawJson = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-                        const data = JSON.parse(rawJson);
+                        const data = await response.json();
                         
                         // Populate tempManualMed with the extracted data
                         tempManualMed.name = data.medication || 'Unknown Medication';
@@ -678,3 +656,4 @@
     </script>
 </body>
 </html>
+
