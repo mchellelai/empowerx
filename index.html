@@ -463,6 +463,11 @@
                     addMessage(`Current Instructions: ${medToReview.instructions}`, true, false);
                     addMessage('Are you still taking this medication and is the dose correct?');
                     showButtons([
+                        { text: 'Yes, this is correct', action: (text) => {
+                            addMessage(text, false);
+                            medsReviewIndex++;
+                            handleMessage('next_med');
+                        }},
                         { text: 'Yes, but with different instructions', action: () => {
                             addMessage('Yes, but with different instructions', false);
                             // This action only changes the state and shows the input box.
@@ -656,4 +661,5 @@
     </script>
 </body>
 </html>
+
 
